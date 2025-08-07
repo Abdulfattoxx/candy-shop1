@@ -6,22 +6,28 @@ import {
   Package, CheckCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 
-// Candy ranglar palitrasi
+// Ranglar palitrasi
 const colors = {
-  primary: '#FF6BBD',       // Shakarli pushti
-  secondary: '#A45CFF',     // Lolipop binafshasi
-  accent: '#FFD166',        // Limon shakari
-  background: '#FFF5F9',    // Och pushti fon
-  text: '#4A2B3A',         // To'q shokolad
-  lightText: '#8C6A7D',     // Och shokolad
-  success: '#4CC9A7',       // Naneli shakar
-  warning: '#FF9E5E',       // Apelsin shakari
-  card: '#FFFFFF',          // Oq shakar
-  shadow: 'rgba(164, 92, 255, 0.2)' // Binafsha soyasi
+  primary: '#FF6BBD',
+  secondary: '#A45CFF',
+  accent: '#FFD166',
+  background: '#FFF5F9',
+  text: '#4A2B3A',
+  lightText: '#8C6A7D',
+  success: '#4CC9A7',
+  warning: '#FF9E5E',
+  card: '#FFFFFF',
+  shadow: 'rgba(164, 92, 255, 0.2)'
 };
 
 const CandyShopApp = () => {
+  // Sahifa va navbar state
   const [currentPage, setCurrentPage] = useState('home');
+  const [activeTab, setActiveTab] = useState('home');
+  useEffect(() => {
+    setCurrentPage(activeTab);
+  }, [activeTab]);
+
   const [cart, setCart] = useState([]);
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +57,29 @@ const CandyShopApp = () => {
   });
   const searchInputRef = useRef(null);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('candyShopDark') === 'true');
+
+  // 1. Like tizimi uchun state va localStorage
+  const [likedProducts, setLikedProducts] = useState(() => {
+    const saved = localStorage.getItem('candyShopLikes');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [likeAnim, setLikeAnim] = useState(null);
+
+  // Like funksiyasi
+  const toggleLike = (product) => {
+    setLikedProducts(prev => {
+      let updated;
+      if (prev.some(p => p.id === product.id)) {
+        updated = prev.filter(p => p.id !== product.id);
+      } else {
+        updated = [...prev, product];
+        setLikeAnim(product.id); // animatsiya uchun
+        setTimeout(() => setLikeAnim(null), 800);
+      }
+      localStorage.setItem('candyShopLikes', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // Dark mode localStorage va <html> class bilan boshqariladi
   useEffect(() => {
@@ -731,8 +760,17 @@ const CandyShopApp = () => {
                       </div>
                       <motion.button
                         whileTap={{ scale: 0.8 }}
+                        animate={likeAnim === product.id ? { scale: [1, 1.5, 1] } : {}}
+                        transition={{ duration: 0.5 }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          toggleLike(product);
+                        }}
                       >
-                        <Heart className="w-5 h-5 text-gray-300 hover:text-red-500 cursor-pointer" />
+                        <Heart
+                          className={`w-5 h-5 cursor-pointer ${likedProducts.some(p => p.id === product.id) ? 'text-pink-500' : 'text-gray-300 hover:text-red-500'}`}
+                          fill={likedProducts.some(p => p.id === product.id) ? 'currentColor' : 'none'}
+                        />
                       </motion.button>
                     </div>
                     <h3 className="font-bold mb-2 text-sm leading-tight" style={{ color: colors.text }}>
@@ -814,8 +852,17 @@ const CandyShopApp = () => {
                     </div>
                     <motion.button
                       whileTap={{ scale: 0.8 }}
+                      animate={likeAnim === product.id ? { scale: [1, 1.5, 1] } : {}}
+                      transition={{ duration: 0.5 }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        toggleLike(product);
+                      }}
                     >
-                      <Heart className="w-5 h-5 text-gray-300 hover:text-red-500 cursor-pointer" />
+                      <Heart
+                        className={`w-5 h-5 cursor-pointer ${likedProducts.some(p => p.id === product.id) ? 'text-pink-500' : 'text-gray-300 hover:text-red-500'}`}
+                        fill={likedProducts.some(p => p.id === product.id) ? 'currentColor' : 'none'}
+                      />
                     </motion.button>
                   </div>
                   <h3 className="font-bold mb-2 text-sm leading-tight" style={{ color: colors.text }}>
@@ -1501,141 +1548,59 @@ const CandyShopApp = () => {
     );
   };
 
-  const HistoryPage = () => (
+  const LikePage = () => (
     <motion.div
-      initial="initial"
-      animate="in"
-      exit="out"
-      variants={pageVariants}
-      transition={pageTransition}
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -50 }}
       className="min-h-screen"
       style={{ backgroundColor: colors.background }}
     >
-      <div 
-        className="bg-white p-4 shadow-sm flex items-center"
-        style={{ borderBottom: `1px solid ${colors.background}` }}
-      >
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-        >
-          <ArrowLeft 
-            className="w-6 h-6 cursor-pointer mr-3" 
-            onClick={() => setCurrentPage('profile')}
-            style={{ color: colors.text }}
-          />
+      <div className="bg-white p-4 shadow-sm flex items-center" style={{ borderBottom: `1px solid ${colors.background}` }}>
+        <motion.button whileTap={{ scale: 0.9 }}>
+          <ArrowLeft className="w-6 h-6 cursor-pointer mr-3" onClick={() => setActiveTab('home')} style={{ color: colors.text }} />
         </motion.button>
-        <h1 className="text-xl font-bold" style={{ color: colors.text }}>
-          Buyurtmalar tarixi
-        </h1>
+        <h1 className="text-xl font-bold" style={{ color: colors.text }}>Sevimlilar</h1>
       </div>
-
       <div className="p-4">
-        {orderHistory.length === 0 ? (
-          <motion.div 
-            className="flex flex-col items-center justify-center h-96"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <motion.div 
-              className="text-6xl mb-4"
-              animate={{ 
-                rotate: [0, 10, -10, 0],
-                transition: { repeat: Infinity, duration: 3 } 
-              }}
-            >
-              📦
-            </motion.div>
-            <h2 className="text-xl font-bold mb-2" style={{ color: colors.text }}>
-              Buyurtmalar tarixi bo'sh
-            </h2>
-            <p className="mb-4" style={{ color: colors.lightText }}>
-              Hali hech qanday buyurtma bermagansiz
-            </p>
-            <motion.button
-              onClick={() => setCurrentPage('home')}
-              className="px-6 py-3 rounded-xl font-semibold"
-              style={{ 
-                background: `linear-gradient(90deg, ${colors.primary}, ${colors.secondary})`,
-                color: 'white'
-              }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Xarid qilish
-            </motion.button>
-          </motion.div>
+        {likedProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-96">
+            <div className="text-6xl mb-4">💔</div>
+            <h2 className="text-xl font-bold mb-2" style={{ color: colors.text }}>Sevimlilar yo‘q</h2>
+            <p className="mb-4" style={{ color: colors.lightText }}>Mahsulotlarga like bosing</p>
+          </div>
         ) : (
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: { opacity: 0 },
-              visible: {
-                opacity: 1,
-                transition: {
-                  staggerChildren: 0.1
-                }
-              }
-            }}
-          >
-            {orderHistory.map((order, index) => (
+          <div className="grid grid-cols-2 gap-4">
+            {likedProducts.map(product => (
               <motion.div
-                key={order.id}
-                variants={fadeIn}
-                className="bg-white rounded-xl p-4 mb-4 shadow-md"
+                key={product.id}
+                className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all cursor-pointer relative"
                 style={{ border: `1px solid ${colors.background}` }}
+                whileHover={{ y: -5 }}
+                onClick={() => setShowProductDetails(product)}
               >
-                <div className="flex justify-between items-center mb-3">
-                  <div>
-                    <h3 className="font-bold" style={{ color: colors.text }}>
-                      Buyurtma #{order.id}
-                    </h3>
-                    <p className="text-sm" style={{ color: colors.lightText }}>
-                      {new Date(order.date).toLocaleString()}
-                    </p>
-                  </div>
-                  <div 
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      order.status === 'Yetkazilmoqda' ? 'bg-yellow-100 text-yellow-800' :
-                      order.status === 'Yetkazib berildi' ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {order.status}
-                  </div>
-                </div>
-                
-                <div className="space-y-2 mb-3">
-                  {order.items.slice(0, 2).map(item => (
-                    <div key={item.id} className="flex justify-between">
-                      <span style={{ color: colors.text }}>
-                        {item.name} × {item.quantity}
-                      </span>
-                      <span style={{ color: colors.text }}>
-                        {formatPrice(item.price * item.quantity)}
-                      </span>
-                    </div>
-                  ))}
-                  {order.items.length > 2 && (
-                    <div style={{ color: colors.lightText }}>
-                      + {order.items.length - 2} ta mahsulot
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex justify-between items-center pt-3 border-t"
-                  style={{ borderColor: colors.background }}
+                <motion.div
+                  className="absolute top-3 right-3 z-10"
+                  animate={likeAnim === product.id ? { scale: [1, 1.4, 1] } : {}}
+                  transition={{ duration: 0.6 }}
                 >
-                  <span className="font-bold" style={{ color: colors.text }}>
-                    Jami:
-                  </span>
-                  <span className="font-bold" style={{ color: colors.primary }}>
-                    {formatPrice(order.total)}
-                  </span>
+                  <Heart
+                    className="w-6 h-6 text-pink-500 cursor-pointer"
+                    fill="currentColor"
+                    onClick={e => {
+                      e.stopPropagation();
+                      toggleLike(product);
+                    }}
+                  />
+                </motion.div>
+                <div className="relative p-4">
+                  <div className="text-5xl mb-3 text-center">{product.image}</div>
+                  <h3 className="font-bold mb-2 text-sm leading-tight" style={{ color: colors.text }}>{product.name}</h3>
+                  <span className="text-lg font-bold" style={{ color: colors.primary }}>{formatPrice(product.price)}</span>
                 </div>
               </motion.div>
             ))}
-          </motion.div>
+          </div>
         )}
       </div>
     </motion.div>
@@ -2061,6 +2026,7 @@ const CandyShopApp = () => {
         {currentPage === 'profile' && <ProfilePage key="profile" />}
         {currentPage === 'checkout' && <CheckoutPage key="checkout" />}
         {currentPage === 'history' && <HistoryPage key="history" />}
+        {currentPage === 'like' && <LikePage key="like" />}
       </AnimatePresence>
 
       {showProductDetails && (
@@ -2079,6 +2045,26 @@ const CandyShopApp = () => {
       >
         {darkMode ? '☀️' : '🌙'}
       </button>
+
+      {/* Pastki navbar */}
+      <nav className="fixed bottom-0 left-0 w-full z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-around py-2 shadow-lg">
+        <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center ${activeTab === 'home' ? 'text-pink-500' : 'text-gray-400'}`}>
+          <Home className="w-6 h-6" />
+          <span className="text-xs">Home</span>
+        </button>
+        <button onClick={() => setActiveTab('like')} className={`flex flex-col items-center ${activeTab === 'like' ? 'text-pink-500' : 'text-gray-400'}`}>
+          <Heart className="w-6 h-6" />
+          <span className="text-xs">Like</span>
+        </button>
+        <button onClick={() => setActiveTab('cart')} className={`flex flex-col items-center ${activeTab === 'cart' ? 'text-pink-500' : 'text-gray-400'}`}>
+          <ShoppingCart className="w-6 h-6" />
+          <span className="text-xs">Savat</span>
+        </button>
+        <button onClick={() => setActiveTab('profile')} className={`flex flex-col items-center ${activeTab === 'profile' ? 'text-pink-500' : 'text-gray-400'}`}>
+          <User className="w-6 h-6" />
+          <span className="text-xs">Hisob</span>
+        </button>
+      </nav>
     </div>
   );
 };
