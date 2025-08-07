@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ShoppingCart, User, Search, ArrowLeft, Star, Heart, Gift, Candy, 
-  X, Plus, Minus, LogIn, LogOut, Home, History, MapPin, CreditCard, 
-  Package, CheckCircle, ChevronDown, ChevronUp, Phone, Lock, Mail
+import {
+  ShoppingCart, User, Search, ArrowLeft, Star, Heart, Gift, Candy,
+  X, Plus, Minus, LogIn, LogOut, Home, History, MapPin, CreditCard,
+  Package, CheckCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 // Candy ranglar palitrasi
@@ -25,6 +25,16 @@ const CandyShopApp = () => {
   const [cart, setCart] = useState([]);
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Debounce effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300); // 300ms kechikish
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showProductDetails, setShowProductDetails] = useState(null);
   const [orderHistory, setOrderHistory] = useState([]);
@@ -40,6 +50,14 @@ const CandyShopApp = () => {
     password: ''
   });
   const searchInputRef = useRef(null);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('candyShopDark') === 'true');
+
+  // Dark mode localStorage va <html> class bilan boshqariladi
+  useEffect(() => {
+    if (darkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    localStorage.setItem('candyShopDark', darkMode ? 'true' : 'false');
+  }, [darkMode]);
 
   // Mahalliy saqlashdan ma'lumotlarni o'qish
   useEffect(() => {
@@ -326,18 +344,16 @@ const CandyShopApp = () => {
     ));
   };
 
-  const getFilteredProducts = () => {
-    let filtered = selectedCategory === 'all' ? allProducts : 
+  const getFilteredProducts = (query = '') => {
+    let filtered = selectedCategory === 'all' ? allProducts :
                    selectedCategory === 'promotions' ? promotionalProducts :
                    products.filter(p => p.category === selectedCategory);
-    
-    if (searchQuery) {
+    if (query) {
       filtered = filtered.filter(p => 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        (p.description && p.description.toLowerCase().includes(query.toLowerCase()))
       );
     }
-    
     return filtered;
   };
 
@@ -384,38 +400,63 @@ const CandyShopApp = () => {
     setShowLoginModal(false);
   };
 
+  // Foydalanuvchilar ro'yxati (localStorage orqali)
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem('candyShopUsers');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Register funksiyasi
   const handleRegister = () => {
-    if (!registerData.name || !registerData.phone || !registerData.password) {
-      alert('Iltimos, barcha maydonlarni to\'ldiring');
+    if (
+      !registerData.name ||
+      !registerData.phone.match(/^\+998\d{9}$/) ||
+      registerData.password.length < 6
+    ) {
+      alert("To‘g‘ri ism, telefon va parol kiriting!");
       return;
     }
-    
-    setUser({
+    // Telefon raqami unikal bo‘lishi kerak
+    if (users.some(u => u.phone === registerData.phone)) {
+      alert("Bu telefon raqami bilan foydalanuvchi mavjud!");
+      return;
+    }
+    const newUser = {
       name: registerData.name,
-      phone: registerData.phone
+      phone: registerData.phone,
+      password: registerData.password
+    };
+    setUsers(prev => {
+      const updated = [...prev, newUser];
+      localStorage.setItem('candyShopUsers', JSON.stringify(updated));
+      return updated;
     });
+    setUser(newUser);
     setShowLoginModal(false);
     setRegisterData({ name: '', phone: '', password: '' });
   };
 
+  // Login funksiyasi
   const handleLogin = () => {
-    if (!loginData.phone || !loginData.password) {
-      alert('Iltimos, telefon raqam va parolni kiriting');
-      return;
+    const found = users.find(
+      u => u.phone === loginData.phone && u.password === loginData.password
+    );
+    if (found) {
+      setUser(found);
+      setShowLoginModal(false);
+      setLoginData({ phone: '', password: '' });
+    } else {
+      alert("Telefon yoki parol noto‘g‘ri!");
     }
-    
-    // Bu yerda odatda backendga so'rov yuboriladi
-    setUser({
-      name: 'Mijoz',
-      phone: loginData.phone
-    });
-    setShowLoginModal(false);
-    setLoginData({ phone: '', password: '' });
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setCurrentPage('home');
+  // Qidiruv faqat tugma bosilganda ishlaydi
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchActive, setSearchActive] = useState(false);
+
+  const handleSearch = () => {
+    setSearchActive(true);
+    setSearchResults(getFilteredProducts(searchQuery));
   };
 
   // Animatsiya variantlari
@@ -546,13 +587,8 @@ const CandyShopApp = () => {
       </div>
 
       {/* Search */}
-      <motion.div 
-        className="p-4"
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        <div className="relative">
+      <motion.div className="p-4" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
+        <div className="relative flex">
           <Search className="absolute left-3 top-3 w-5 h-5" style={{ color: colors.lightText }} />
           <input
             type="text"
@@ -560,22 +596,15 @@ const CandyShopApp = () => {
             className="w-full bg-white rounded-xl pl-12 pr-4 py-3 border-0 focus:ring-2 focus:ring-pink-500 focus:border-transparent shadow-md"
             style={{ color: colors.text }}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            ref={searchInputRef}
+            onChange={e => setSearchQuery(e.target.value)}
           />
-          {searchQuery && (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onClick={() => {
-                setSearchQuery('');
-                searchInputRef.current.focus();
-              }}
-              className="absolute right-3 top-3"
-            >
-              <X className="w-5 h-5" style={{ color: colors.lightText }} />
-            </motion.button>
-          )}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            className="absolute right-2 top-2 bg-pink-500 text-white rounded-lg px-3 py-1 font-bold shadow"
+            onClick={handleSearch}
+          >
+            Qidirish
+          </motion.button>
         </div>
       </motion.div>
 
@@ -656,87 +685,178 @@ const CandyShopApp = () => {
             }
           }}
         >
-          {getFilteredProducts().map((product, index) => (
-            <motion.div
-              key={product.id}
-              variants={scaleUp}
-              whileHover={{ y: -5 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowProductDetails(product)}
-              className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all cursor-pointer"
-              style={{ border: `1px solid ${colors.background}` }}
-            >
-              {product.isPromo && (
-                <motion.div 
-                  className="bg-red-500 text-white text-xs font-bold px-3 py-1 absolute z-10 rounded-br-lg"
-                  initial={{ x: -20 }}
-                  animate={{ x: 0 }}
-                  transition={{ delay: 0.1 + (index * 0.05) }}
-                >
-                  AKSIYA
-                </motion.div>
+          {searchActive ? (
+            <motion.div className="grid grid-cols-2 gap-4">
+              {searchResults.length === 0 && (
+                <div className="col-span-2 text-center text-gray-400 py-12">
+                  <span>Mahsulot topilmadi</span>
+                </div>
               )}
-              <div className="relative p-4">
-                <motion.div 
-                  className="text-5xl mb-3 text-center"
-                  animate={{
-                    rotate: [0, 5, -5, 0],
-                    transition: { delay: index * 0.05 }
-                  }}
+              {searchResults.map(product => (
+                <motion.div
+                  key={product.id}
+                  variants={scaleUp}
+                  whileHover={{ y: -5 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowProductDetails(product)}
+                  className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all cursor-pointer"
+                  style={{ border: `1px solid ${colors.background}` }}
                 >
-                  {product.image}
+                  {product.isPromo && (
+                    <motion.div 
+                      className="bg-red-500 text-white text-xs font-bold px-3 py-1 absolute z-10 rounded-br-lg"
+                      initial={{ x: -20 }}
+                      animate={{ x: 0 }}
+                      transition={{ delay: 0.1 + (index * 0.05) }}
+                    >
+                      AKSIYA
+                    </motion.div>
+                  )}
+                  <div className="relative p-4">
+                    <motion.div 
+                      className="text-5xl mb-3 text-center"
+                      animate={{
+                        rotate: [0, 5, -5, 0],
+                        transition: { delay: index * 0.05 }
+                      }}
+                    >
+                      {product.image}
+                    </motion.div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                        <span className="text-sm ml-1" style={{ color: colors.lightText }}>
+                          {product.rating}
+                        </span>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.8 }}
+                      >
+                        <Heart className="w-5 h-5 text-gray-300 hover:text-red-500 cursor-pointer" />
+                      </motion.button>
+                    </div>
+                    <h3 className="font-bold mb-2 text-sm leading-tight" style={{ color: colors.text }}>
+                      {product.name}
+                    </h3>
+                    {product.description && (
+                      <p className="text-xs mb-2" style={{ color: colors.lightText }}>
+                        {product.description}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <span className="text-lg font-bold" style={{ color: colors.primary }}>
+                          {formatPrice(product.price)}
+                        </span>
+                        {product.oldPrice && (
+                          <span className="text-xs line-through ml-2" style={{ color: colors.lightText }}>
+                            {formatPrice(product.oldPrice)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <motion.button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product);
+                      }}
+                      className="w-full py-2 rounded-xl font-semibold transition-colors"
+                      style={{ 
+                        background: `linear-gradient(90deg, ${colors.primary}, ${colors.secondary})`,
+                        color: 'white'
+                      }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Savatga
+                    </motion.button>
+                  </div>
                 </motion.div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center">
-                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                    <span className="text-sm ml-1" style={{ color: colors.lightText }}>
-                      {product.rating}
-                    </span>
+              ))}
+            </motion.div>
+          ) : (
+            allProducts.map((product, index) => (
+              <motion.div
+                key={product.id}
+                variants={scaleUp}
+                whileHover={{ y: -5 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowProductDetails(product)}
+                className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all cursor-pointer"
+                style={{ border: `1px solid ${colors.background}` }}
+              >
+                {product.isPromo && (
+                  <motion.div 
+                    className="bg-red-500 text-white text-xs font-bold px-3 py-1 absolute z-10 rounded-br-lg"
+                    initial={{ x: -20 }}
+                    animate={{ x: 0 }}
+                    transition={{ delay: 0.1 + (index * 0.05) }}
+                  >
+                    AKSIYA
+                  </motion.div>
+                )}
+                <div className="relative p-4">
+                  <motion.div 
+                    className="text-5xl mb-3 text-center"
+                    animate={{
+                      rotate: [0, 5, -5, 0],
+                      transition: { delay: index * 0.05 }
+                    }}
+                  >
+                    {product.image}
+                  </motion.div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                      <span className="text-sm ml-1" style={{ color: colors.lightText }}>
+                        {product.rating}
+                      </span>
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.8 }}
+                    >
+                      <Heart className="w-5 h-5 text-gray-300 hover:text-red-500 cursor-pointer" />
+                    </motion.button>
+                  </div>
+                  <h3 className="font-bold mb-2 text-sm leading-tight" style={{ color: colors.text }}>
+                    {product.name}
+                  </h3>
+                  {product.description && (
+                    <p className="text-xs mb-2" style={{ color: colors.lightText }}>
+                      {product.description}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-lg font-bold" style={{ color: colors.primary }}>
+                        {formatPrice(product.price)}
+                      </span>
+                      {product.oldPrice && (
+                        <span className="text-xs line-through ml-2" style={{ color: colors.lightText }}>
+                          {formatPrice(product.oldPrice)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <motion.button
-                    whileTap={{ scale: 0.8 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addToCart(product);
+                    }}
+                    className="w-full py-2 rounded-xl font-semibold transition-colors"
+                    style={{ 
+                      background: `linear-gradient(90deg, ${colors.primary}, ${colors.secondary})`,
+                      color: 'white'
+                    }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
-                    <Heart className="w-5 h-5 text-gray-300 hover:text-red-500 cursor-pointer" />
+                    Savatga
                   </motion.button>
                 </div>
-                <h3 className="font-bold mb-2 text-sm leading-tight" style={{ color: colors.text }}>
-                  {product.name}
-                </h3>
-                {product.description && (
-                  <p className="text-xs mb-2" style={{ color: colors.lightText }}>
-                    {product.description}
-                  </p>
-                )}
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="text-lg font-bold" style={{ color: colors.primary }}>
-                      {formatPrice(product.price)}
-                    </span>
-                    {product.oldPrice && (
-                      <span className="text-xs line-through ml-2" style={{ color: colors.lightText }}>
-                        {formatPrice(product.oldPrice)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <motion.button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addToCart(product);
-                  }}
-                  className="w-full py-2 rounded-xl font-semibold transition-colors"
-                  style={{ 
-                    background: `linear-gradient(90deg, ${colors.primary}, ${colors.secondary})`,
-                    color: 'white'
-                  }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  Savatga
-                </motion.button>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))
+          )}
         </motion.div>
       </div>
     </motion.div>
@@ -1524,6 +1644,8 @@ const CandyShopApp = () => {
   const ProductDetailsModal = ({ product, onClose }) => {
     const [selectedImage, setSelectedImage] = useState(0);
     const [quantity, setQuantity] = useState(1);
+    const [reviews, setReviews] = useState([]);
+    const [reviewText, setReviewText] = useState('');
     
     const images = [
       product.image,
@@ -1641,6 +1763,33 @@ const CandyShopApp = () => {
                   {product.weight ? 'Og\'irligi' : 'Hajmi'}
                 </h4>
                 <p className="text-sm">{product.weight || product.volume}</p>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <h4 className="font-bold mb-2">Izohlar</h4>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {reviews.map((r, i) => (
+                  <div key={i} className="text-sm bg-gray-50 rounded p-2">{r}</div>
+                ))}
+              </div>
+              <div className="flex mt-2">
+                <input
+                  type="text"
+                  className="flex-1 border rounded-l p-2"
+                  placeholder="Izoh yozing..."
+                  value={reviewText}
+                  onChange={e => setReviewText(e.target.value)}
+                />
+                <button
+                  className="bg-pink-500 text-white px-4 rounded-r"
+                  onClick={() => {
+                    if (reviewText.trim()) {
+                      setReviews([...reviews, reviewText]);
+                      setReviewText('');
+                    }
+                  }}
+                >Yuborish</button>
               </div>
             </div>
             
@@ -1879,10 +2028,11 @@ const CandyShopApp = () => {
     );
   };
 
+  // 1. Responsive container va dark mode
   return (
-    <div 
-      className="max-w-md mx-auto bg-white min-h-screen relative overflow-hidden"
-      style={{ backgroundColor: colors.background }}
+    <div
+      className={`fixed inset-0 w-full min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300 overflow-y-auto`}
+      style={{ backgroundColor: colors.background, zIndex: 0 }}
     >
       {/* Background decorative elements */}
       <motion.div 
@@ -1894,6 +2044,7 @@ const CandyShopApp = () => {
           transition: { repeat: Infinity, duration: 8 }
         }}
       />
+
       <motion.div 
         className="absolute -bottom-10 -left-10 w-60 h-60 rounded-full"
         style={{ backgroundColor: colors.secondary, opacity: 0.1 }}
@@ -1911,15 +2062,23 @@ const CandyShopApp = () => {
         {currentPage === 'checkout' && <CheckoutPage key="checkout" />}
         {currentPage === 'history' && <HistoryPage key="history" />}
       </AnimatePresence>
-      
+
       {showProductDetails && (
-        <ProductDetailsModal 
-          product={showProductDetails} 
-          onClose={() => setShowProductDetails(null)} 
+        <ProductDetailsModal
+          product={showProductDetails}
+          onClose={() => setShowProductDetails(null)}
         />
       )}
-      
+
       {showLoginModal && <LoginModal />}
+      {/* Dark mode tugmasini quyidagicha o‘zgartiring: */}
+      <button
+        className="fixed bottom-4 right-4 z-50 bg-white dark:bg-gray-800 rounded-full shadow-lg p-3"
+        onClick={() => setDarkMode(d => !d)}
+        aria-label="Tungi rejim"
+      >
+        {darkMode ? '☀️' : '🌙'}
+      </button>
     </div>
   );
 };
